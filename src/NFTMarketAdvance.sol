@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/interfaces/IERC1363Receiver.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-contract OptimizedNFTMarketplace is IERC721Receiver, IERC1363Receiver {
+contract NFTMarketAdvance is IERC721Receiver, IERC1363Receiver {
     IERC20 public immutable tokenContract;
     IERC721 public immutable nftContract;
 
