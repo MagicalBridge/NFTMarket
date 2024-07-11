@@ -4,8 +4,8 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-// NFTMarketplace 合约允许用户使用自定义的 ERC20 代币购买和出售 NFT
-contract NFTMarketplace {
+// NFTMarket 合约允许用户使用自定义的 ERC20 代币购买和出售 NFT
+contract NFTMarket {
     // 定义 ERC20 代币和 ERC721 NFT 合约的接口
     IERC20 public immutable tokenContract;
     IERC721 public immutable nftContract;
