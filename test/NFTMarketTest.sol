@@ -297,7 +297,7 @@ contract NFTMarketTest is Test {
     function testRandomListingAndBuying(uint256 price) public {
         address  user = address(1);
 
-        address  buyerAddress = address();
+        address  buyerAddress = address(0x33);
         uint256  MAX_PRICE = 10000 * (10 ** 18);
         uint256  MIN_PRICE = 1 * (10**16); // 0.01 token
         
