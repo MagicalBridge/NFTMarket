@@ -12,30 +12,33 @@ contract LouisTokenHook is ERC20 {
 
     error ERC1363ReceiveFailed(address to);
 
-    // this token allow every body mint 
+    // this token allow every body mint
     function mint() external {
-        _mint(msg.sender, 1000 * (10**18));
+        _mint(msg.sender, 1000 * (10 ** 18));
     }
 
-    function transferAndcall(address to, uint256 value , bytes calldata data) public returns(bool) {
+    function transferAndcall(
+        address to,
+        uint256 value,
+        bytes calldata data
+    ) public returns (bool) {
         if (!transfer(to, value)) {
-		    revert ERC1363TransferFailed(to, value);
-	    }
+            revert ERC1363TransferFailed(to, value);
+        }
 
         _checkOnTransferReceived(msg.sender, to, value, data);
-        
+
         return true;
     }
 
-    // hooks 
+    // hooks
     function _checkOnTransferReceived(
         address from,
         address to,
         uint256 value,
         bytes memory data
     ) private {
-
-        if(isContract(to) == false) {
+        if (isContract(to) == false) {
             return;
         }
 
@@ -46,15 +49,14 @@ contract LouisTokenHook is ERC20 {
                 from,
                 value,
                 data
-            ) returns (bytes4 retval) {
-            
-                if (retval != IERC1363Receiver.onTransferReceived.selector) {
-                    revert ERC1363ReceiveFailed(to);
-                }
+            )
+        returns (bytes4 retval) {
+            if (retval != IERC1363Receiver.onTransferReceived.selector) {
+                revert ERC1363ReceiveFailed(to);
+            }
         } catch (bytes memory reason) {
             revert ERC1363ReceiveFailed(to);
         }
-
     }
 
     function isContract(address account) internal view returns (bool) {

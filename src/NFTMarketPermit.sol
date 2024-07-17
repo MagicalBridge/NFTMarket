@@ -3,9 +3,13 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
-// NFTMarket 合约允许用户使用自定义的 ERC20 代币购买和出售 NFT
-contract NFTMarket {
+contract NFTMarketPermit is EIP712 {
+    using ECDSA for bytes32;
+
     // 定义 ERC20 代币和 ERC721 NFT 合约的接口
     IERC20 public immutable tokenContract;
     IERC721 public immutable nftContract;
@@ -33,8 +37,14 @@ contract NFTMarket {
         uint256 price
     );
 
+    bytes32 private constant PERMIT_TYPEHASH =
+        keccak256("PermitBuy(uint256 tokenId,uint256 price,uint256 deadline)");
+
     // 构造函数，初始化合约时设置 ERC20 代币合约和 ERC721 NFT 合约的地址
-    constructor(address _tokenAddress, address _nftAddress) {
+    constructor(
+        address _tokenAddress,
+        address _nftAddress
+    ) EIP712("NFTMarketPermit", "1") {
         require(
             _tokenAddress != address(0),
             "Token contract address cannot be zero."
@@ -67,34 +77,46 @@ contract NFTMarket {
         emit NFTListed(_tokenId, msg.sender, _price);
     }
 
-    // 购买 NFT 函数，允许用户购买上架的 NFT
-    function buyNFT(uint256 _tokenId) external {
-        // 获取该 NFT 的 Listing 信息
+    // 基于EIP712标准设计购买流程，项目方为白名单用户生成签名，用户可以传递签名信息来购买NFT
+    function permitBuyNFT(
+        uint256 _tokenId,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s,
+        bytes calldata _permit
+    ) external {
         Listing memory listing = listings[_tokenId];
-        // 确保该 NFT 已上架
-        require(listing.seller != address(0), "NFT not listed");
+        require(listing.seller != address(0), "NFT not listed for sale");
 
-        // 获取买家的 ERC20 代币余额和授权额度
-        uint256 buyerBalance = tokenContract.balanceOf(msg.sender);
-        uint256 buyerAllowance = tokenContract.allowance(
-            msg.sender,
-            address(this)
+        // 验证买家的签名
+        bytes32 structHash = keccak256(
+            abi.encode(PERMIT_TYPEHASH, _tokenId, listing.price, deadline)
         );
+        bytes32 hash = _hashTypedDataV4(structHash);
+        address signer = hash.recover(v, r, s);
+        require(signer == msg.sender, "Invalid signature");
+        require(block.timestamp <= deadline, "Permit expired");
 
-        // 确保买家有足够的余额和授权额度
-        require(
-            buyerBalance >= listing.price,
-            "ERC20: transfer amount exceeds balance"
-        );
-        require(
-            buyerAllowance >= listing.price,
-            "ERC20: transfer amount exceeds balance"
-        );
-
-        // 从 listings 映射中删除该 NFT 的信息
+        // 删除列表并发出事件
         delete listings[_tokenId];
 
-        // 从买家账户转移相应数量的 ERC20 代币到卖家账户
+        // 使用 ERC2612 标准转移代币
+        (uint8 permitV, bytes32 permitR, bytes32 permitS) = abi.decode(
+            _permit,
+            (uint8, bytes32, bytes32)
+        );
+        IERC20Permit(address(tokenContract)).permit(
+            msg.sender,
+            address(this),
+            listing.price,
+            deadline,
+            permitV,
+            permitR,
+            permitS
+        );
+
+        // 转移代币和 NFT
         require(
             tokenContract.transferFrom(
                 msg.sender,
@@ -103,11 +125,8 @@ contract NFTMarket {
             ),
             "Token transfer failed"
         );
-
-        // 将 NFT 从卖家账户转移到买家账户
         nftContract.safeTransferFrom(listing.seller, msg.sender, _tokenId);
 
-        // 触发 NFTSold 事件
         emit NFTSold(_tokenId, listing.seller, msg.sender, listing.price);
     }
 }

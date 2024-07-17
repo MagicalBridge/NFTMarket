@@ -84,9 +84,9 @@ contract BaseERC721 {
         return
             interfaceId == 0x01ffc9a7 || // ERC165 Interface ID for ERC165
             interfaceId == 0x80ac58cd || // ERC165 Interface ID for ERC721
-            interfaceId == 0x5b5e139f;   // ERC165 Interface ID for ERC721Metadata
+            interfaceId == 0x5b5e139f; // ERC165 Interface ID for ERC721Metadata
     }
-    
+
     /**
      * @dev See {IERC721Metadata-name}.
      */
@@ -128,10 +128,10 @@ contract BaseERC721 {
         require(to != address(0), "ERC721: mint to the zero address");
         // mint的时候，期望并不存在这个tokenId，如果存在抛出异常
         require(!_exists(tokenId), "ERC721: token already minted");
-        
+
         // 当前地址的余额 + 1
         _balances[to] += 1;
-        
+
         // 当前的tokenid 映射到用户地址上
         _owners[tokenId] = to;
 
@@ -142,7 +142,10 @@ contract BaseERC721 {
      * @dev See {IERC721-balanceOf}.
      */
     function balanceOf(address owner) public view returns (uint256) {
-        require(owner != address(0), "ERC721: balance query for the zero address");
+        require(
+            owner != address(0),
+            "ERC721: balance query for the zero address"
+        );
         // 返回指定地址上的小图片数量
         return _balances[owner];
     }
@@ -171,7 +174,7 @@ contract BaseERC721 {
             msg.sender == owner || isApprovedForAll(owner, msg.sender),
             "ERC721: approve caller is not owner nor approved for all"
         );
-        
+
         // 用户批准
         _approve(to, tokenId);
     }
@@ -307,11 +310,16 @@ contract BaseERC721 {
         );
 
         address owner = ownerOf(tokenId);
-        return (spender == owner || getApproved(tokenId) == spender || isApprovedForAll(owner, spender));
+        return (spender == owner ||
+            getApproved(tokenId) == spender ||
+            isApprovedForAll(owner, spender));
     }
 
     function _transfer(address from, address to, uint256 tokenId) internal {
-        require(ownerOf(tokenId) == from, "ERC721: transfer from incorrect owner");
+        require(
+            ownerOf(tokenId) == from,
+            "ERC721: transfer from incorrect owner"
+        );
         require(to != address(0), "ERC721: transfer to the zero address");
 
         _approve(address(0), tokenId);
@@ -328,13 +336,27 @@ contract BaseERC721 {
         emit Approval(ownerOf(tokenId), to, tokenId);
     }
 
-    function _checkOnERC721Received(address from, address to, uint256 tokenId, bytes memory _data) private returns (bool) {
+    function _checkOnERC721Received(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory _data
+    ) private returns (bool) {
         if (to.code.length > 0) {
-            try IERC721Receiver(to).onERC721Received(msg.sender, from, tokenId, _data) returns (bytes4 retval) {
+            try
+                IERC721Receiver(to).onERC721Received(
+                    msg.sender,
+                    from,
+                    tokenId,
+                    _data
+                )
+            returns (bytes4 retval) {
                 return retval == IERC721Receiver.onERC721Received.selector;
             } catch (bytes memory reason) {
                 if (reason.length == 0) {
-                    revert("ERC721: transfer to non ERC721Receiver implementer");
+                    revert(
+                        "ERC721: transfer to non ERC721Receiver implementer"
+                    );
                 } else {
                     assembly {
                         revert(add(32, reason), mload(reason))
@@ -348,7 +370,12 @@ contract BaseERC721 {
 }
 
 contract BaseERC721Receiver is IERC721Receiver {
-    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes calldata
+    ) external pure returns (bytes4) {
         return this.onERC721Received.selector;
     }
 }

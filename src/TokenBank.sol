@@ -9,7 +9,6 @@ import "@openzeppelin/contracts/interfaces/IERC1363Receiver.sol";
  * @dev A smart contract that allows users to deposit and withdraw ERC20 tokens.
  */
 contract TokenBank {
-
     /// @dev A mapping to store balances for each token address and user address.
     mapping(address => mapping(address => uint256)) private balances;
 
@@ -64,7 +63,10 @@ contract TokenBank {
      * @param account The address of the user.
      * @return The balance of the specified token for the user.
      */
-    function balanceOf(address token, address account) public view returns (uint256) {
+    function balanceOf(
+        address token,
+        address account
+    ) public view returns (uint256) {
         return balances[token][account];
     }
 
