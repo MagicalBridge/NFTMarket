@@ -25,10 +25,10 @@ contract NFTMarketPermit is EIP712, Ownable {
         uint256 deadline;
     }
 
-    struct PermitWL {
-        address buyer;
-        uint256 deadline;
-    }
+    // struct PermitWL {
+    //     address buyer;
+    //     uint256 deadline;
+    // }
 
     mapping(uint256 => Listing) public listings;
 
