@@ -37,7 +37,7 @@ contract NFTMarketPermit is EIP712, Ownable {
     event SignVerify(address indexed signer, address indexed owner, address indexed buyer);
     event NFTcancled(uint256 indexed tokenId, address indexed owner);
 
-    bytes32 constant PERMIT_BUY_NFT_WL_TYPEHASH = keccak256("PermitBuyNFTWL(address buyer,uint256 deadline)");
+    bytes32 private constant WHITE_LIST_TYPE_HASH = keccak256("PermitBuyNFTWL(address buyer,uint256 deadline)");
 
     constructor(address _tokenAddress, address _nftAddress) EIP712("NFTMarketPermit", "1") Ownable(msg.sender) {
         require(_tokenAddress != address(0), "Token contract address cannot be zero.");
@@ -85,14 +85,12 @@ contract NFTMarketPermit is EIP712, Ownable {
         view
         returns (address)
     {
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(PERMIT_BUY_NFT_WL_TYPEHASH, buyer, deadline)));
+        require(block.timestamp <= deadline, "deadline should not be passed");
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(WHITE_LIST_TYPE_HASH, buyer, deadline)));
 
         address recoveredSigner = ECDSA.recover(digest, signatureWL);
-
         require(recoveredSigner == owner(), "signer should be owner");
         require(buyer == msg.sender, "buyer should be msg.sender");
-        require(block.timestamp <= deadline, "deadline should not be passed");
-
         return recoveredSigner;
     }
 
@@ -127,5 +125,13 @@ contract NFTMarketPermit is EIP712, Ownable {
         }
 
         require(v == 27 || v == 28, "Invalid signature 'v' value");
+    }
+
+    function DOMAIN_SEPARATOR() external view virtual returns (bytes32) {
+        return _domainSeparatorV4();
+    }
+
+    function getWhiteListTypeHash() public pure returns (bytes32) {
+        return WHITE_LIST_TYPE_HASH;
     }
 }

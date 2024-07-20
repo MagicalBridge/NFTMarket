@@ -134,23 +134,70 @@ contract NFTMarketPermitTest is Test {
         vm.stopPrank();
     }
 
-    // function testPermitBuyNFT() public {
-    //     (address sellerUser,) = makeAddrAndKey("seller");
-    //     (address buyerUser,) = makeAddrAndKey("buyer");
+    function testPermitBuyNFT() public {
+        bytes memory whiteListSignature = _getWhiteListSignature();
+        bytes memory eip2612Signature = _getEIP2612Signature();
 
-    //     // 给用户mint一个NFT
-    //     uint256 tokenId = nft.mint(sellerUser);
-    //     uint256 deadline = block.timestamp + 1 hours;
+        // seller 用户
+        vm.startPrank(seller);
+        // seller用户授权market合约托管nft
+        nft.approve(address(market), tokenId);
+        market.list(tokenId, nftPrice);
+        vm.stopPrank();
 
-    //     // 切换为这个mock用户
-    //     vm.startPrank(sellerUser);
+        // buyer用户
+        vm.prank(buyer);
+        market.permitBuyNFT(
+            whiteListSignature, buyer, deadline, NFTMarketPermit.PermitData(tokenId, deadline), eip2612Signature
+        );
 
-    //     // 授权market托管用户的NFT
-    //     nft.approve(address(market), tokenId);
+        assertEq(nft.ownerOf(1), buyer);
+    }
 
-    //     // List the NFT
-    //     uint256 listingPrice = 10 * (10 ** 18);
-    //     market.list(tokenId, listingPrice);
-    //     vm.stopPrank();
-    // }
+    function testExpiredNFTPurchase() public {
+        // seller 用户
+        vm.startPrank(seller);
+        // seller用户授权market合约托管nft
+        nft.approve(address(market), tokenId);
+        market.list(tokenId, nftPrice);
+        vm.stopPrank();
+
+        bytes memory whiteListSignature = _getWhiteListSignature();
+        bytes memory eip2612Signature = _getEIP2612Signature();
+
+        vm.warp(2 days);
+        vm.expectRevert(); // expecting revert due to expired signature
+        vm.prank(buyer);
+        market.permitBuyNFT(
+            whiteListSignature, buyer, deadline, NFTMarketPermit.PermitData(tokenId, deadline), eip2612Signature
+        );
+    }
+
+    function _getWhiteListSignature() private view returns (bytes memory) {
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                market.DOMAIN_SEPARATOR(),
+                keccak256(abi.encode(market.getWhiteListTypeHash(), buyer, deadline))
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPK, digest);
+        bytes memory whitelistSignature = abi.encodePacked(r, s, v);
+        return whitelistSignature;
+    }
+
+    function _getEIP2612Signature() private view returns (bytes memory) {
+        bytes32 eip2612Digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                ERC20Permit(token).DOMAIN_SEPARATOR(),
+                keccak256(
+                    abi.encode(eip2612PermitTypeHash, buyer, address(market), nftPrice, token.nonces(buyer), deadline)
+                )
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(buyerPK, eip2612Digest);
+        bytes memory eip2612Signature = abi.encodePacked(r, s, v);
+        return eip2612Signature;
+    }
 }
