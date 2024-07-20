@@ -25,10 +25,7 @@ contract TokenBank {
      */
     function deposit(address token, uint256 amount) public {
         require(amount > 0, "Amount must be greater than zero");
-        require(
-            IERC20(token).transferFrom(msg.sender, address(this), amount),
-            "Transfer failed"
-        );
+        require(IERC20(token).transferFrom(msg.sender, address(this), amount), "Transfer failed");
         balances[token][msg.sender] += amount;
 
         // Emit an event for successful deposits (optional)
@@ -63,19 +60,14 @@ contract TokenBank {
      * @param account The address of the user.
      * @return The balance of the specified token for the user.
      */
-    function balanceOf(
-        address token,
-        address account
-    ) public view returns (uint256) {
+    function balanceOf(address token, address account) public view returns (uint256) {
         return balances[token][account];
     }
 
-    function onTransferReceived(
-        address operator,
-        address from,
-        uint256 amount,
-        bytes memory data
-    ) external returns (bytes4) {
+    function onTransferReceived(address operator, address from, uint256 amount, bytes memory data)
+        external
+        returns (bytes4)
+    {
         require(amount > 0, "Amount must be greater than 0");
         balances[msg.sender][from] += amount;
         return IERC1363Receiver.onTransferReceived.selector;

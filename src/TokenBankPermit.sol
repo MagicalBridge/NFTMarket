@@ -9,37 +9,16 @@ contract TokenBank {
 
     function deposit(address token, uint256 amount) public {
         require(amount > 0, "Amount must be greater than zero");
-        require(
-            IERC20(token).transferFrom(msg.sender, address(this), amount),
-            "Transfer failed"
-        );
+        require(IERC20(token).transferFrom(msg.sender, address(this), amount), "Transfer failed");
         balances[token][msg.sender] += amount;
     }
 
-    function depositWithPermit(
-        address token,
-        uint256 amount,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) public {
+    function depositWithPermit(address token, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) public {
         require(amount > 0, "Amount must be greater than zero");
 
-        IERC20Permit(token).permit(
-            msg.sender,
-            address(this),
-            amount,
-            deadline,
-            v,
-            r,
-            s
-        );
+        IERC20Permit(token).permit(msg.sender, address(this), amount, deadline, v, r, s);
 
-        require(
-            IERC20(token).transferFrom(msg.sender, address(this), amount),
-            "Transfer failed"
-        );
+        require(IERC20(token).transferFrom(msg.sender, address(this), amount), "Transfer failed");
         balances[token][msg.sender] += amount;
     }
 
@@ -50,10 +29,7 @@ contract TokenBank {
         require(IERC20(token).transfer(msg.sender, amount), "Transfer failed");
     }
 
-    function balanceOf(
-        address token,
-        address account
-    ) public view returns (uint256) {
+    function balanceOf(address token, address account) public view returns (uint256) {
         return balances[token][account];
     }
 }

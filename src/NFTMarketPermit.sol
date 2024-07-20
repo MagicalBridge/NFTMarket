@@ -25,13 +25,19 @@ contract NFTMarketPermit is EIP712, Ownable {
         uint256 deadline;
     }
 
+    struct PermitWL {
+        address buyer;
+        uint256 deadline;
+    }
+
     mapping(uint256 => Listing) public listings;
 
     event NFTListed(uint256 indexed tokenId, address indexed seller, uint256 price);
     event NFTSold(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price);
     event SignVerify(address indexed signer, address indexed owner, address indexed buyer);
+    event NFTcancled(uint256 indexed tokenId, address indexed owner);
 
-    // bytes32 private constant PERMIT_BUY_NFT_TYPEHASH = "PermitBuyNFTWL(address owner, address buyer)";
+    bytes32 constant PERMIT_BUY_NFT_WL_TYPEHASH = keccak256("PermitBuyNFTWL(address buyer,uint256 deadline)");
 
     constructor(address _tokenAddress, address _nftAddress) EIP712("NFTMarketPermit", "1") Ownable(msg.sender) {
         require(_tokenAddress != address(0), "Token contract address cannot be zero.");
@@ -46,45 +52,80 @@ contract NFTMarketPermit is EIP712, Ownable {
         require(nftContract.getApproved(_tokenId) == address(this), "Not approved");
 
         listings[_tokenId] = Listing(msg.sender, _price);
+
         emit NFTListed(_tokenId, msg.sender, _price);
     }
 
-    function permitBuyNFT(PermitData calldata permitData, bytes calldata _permitWL, bytes calldata _permit) external {
-        // 通过tokenId获取到 NFT的 seller 和 售卖价格
+    function cancelList(uint256 _tokenId) external {
+        address seller = listings[_tokenId].seller;
+        require(seller == msg.sender, "Not the owner");
+        delete listings[_tokenId];
+        emit NFTcancled(_tokenId, seller);
+    }
+
+    function permitBuyNFT(
+        bytes calldata _permitWL,
+        address buyer,
+        uint256 deadline,
+        PermitData calldata permitData,
+        bytes calldata _permit
+    ) external {
         Listing memory listing = listings[permitData.tokenId];
         require(listing.seller != address(0), "NFT not listed");
 
-        verifyPermitSignature(permitData, _permitWL, msg.sender);
+        verifyPermitSignature(_permitWL, buyer, deadline);
         executePermitAndTransfer(permitData, listing, _permit);
 
         delete listings[permitData.tokenId];
         emit NFTSold(permitData.tokenId, listing.seller, msg.sender, listing.price);
     }
 
-    function verifyPermitSignature(PermitData calldata permitData, bytes calldata _permitWL, address buyer)
+    function verifyPermitSignature(bytes calldata signatureWL, address buyer, uint256 deadline)
         public
         view
+        returns (address)
     {
-        bytes32 digest = _hashTypedDataV4(
-            keccak256(abi.encode(keccak256("PermitBuyNFTWL(address owner, address buyer)"), owner(), buyer))
-        );
+        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(PERMIT_BUY_NFT_WL_TYPEHASH, buyer, deadline)));
 
-        address recoveredSigner = ECDSA.recover(digest, _permitWL);
+        address recoveredSigner = ECDSA.recover(digest, signatureWL);
 
         require(recoveredSigner == owner(), "signer should be owner");
         require(buyer == msg.sender, "buyer should be msg.sender");
-        require(block.timestamp <= permitData.deadline, "Permit expired");
+        require(block.timestamp <= deadline, "deadline should not be passed");
+
+        return recoveredSigner;
     }
 
-    function executePermitAndTransfer(PermitData calldata permitData, Listing memory listing, bytes calldata _permit)
+    function executePermitAndTransfer(PermitData calldata permitData, Listing memory listing, bytes calldata signature)
         public
     {
-        (uint8 permitV, bytes32 permitR, bytes32 permitS) = abi.decode(_permit, (uint8, bytes32, bytes32));
-        tokenContractPermit.permit(
-            msg.sender, address(this), listing.price, permitData.deadline, permitV, permitR, permitS
-        );
+        require(signature.length == 65, "Invalid signature length");
+
+        (uint8 v, bytes32 r, bytes32 s) = parseSignature(signature);
+
+        try tokenContractPermit.permit(msg.sender, address(this), listing.price, permitData.deadline, v, r, s) {
+            // Permit successful, proceed with transfer
+        } catch Error(string memory reason) {
+            revert(string(abi.encodePacked("Permit failed: ", reason)));
+        } catch {
+            revert("Permit failed");
+        }
 
         require(tokenContract.transferFrom(msg.sender, listing.seller, listing.price), "Transfer failed");
         nftContract.safeTransferFrom(listing.seller, msg.sender, permitData.tokenId);
+    }
+
+    function parseSignature(bytes memory signature) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
+        assembly {
+            r := mload(add(signature, 32))
+            s := mload(add(signature, 64))
+            v := byte(0, mload(add(signature, 96)))
+        }
+
+        if (v < 27) {
+            v += 27;
+        }
+
+        require(v == 27 || v == 28, "Invalid signature 'v' value");
     }
 }

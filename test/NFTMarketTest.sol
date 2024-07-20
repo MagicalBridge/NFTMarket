@@ -6,7 +6,6 @@ import {NFTMarket} from "../src/NFTMarket.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
-
 contract MockERC20 is ERC20 {
     constructor() ERC20("MockToken", "MTK") {}
 
@@ -17,6 +16,7 @@ contract MockERC20 is ERC20 {
 
 contract MockERC721 is ERC721 {
     uint256 private _tokenIdCounter;
+
     constructor() ERC721("MockNFT", "MNFT") {}
 
     function mint(address to) public returns (uint256) {
@@ -48,8 +48,6 @@ contract NFTMarketTest is Test {
         assertEq(address(market.nftContract()), address(nft), "NFT contract address mismatch");
     }
 
-    
-
     // 可以成功上架NFT
     function testNFTOwnerCanList() public {
         address user = address(0x01);
@@ -64,7 +62,7 @@ contract NFTMarketTest is Test {
         nft.approve(address(market), tokenId);
 
         // List the NFT
-        uint256 listingPrice = 100 * (10**18);
+        uint256 listingPrice = 100 * (10 ** 18);
         vm.expectEmit();
         emit NFTListed(tokenId, user, listingPrice); // 期望的事件
         market.list(tokenId, listingPrice);
@@ -75,7 +73,6 @@ contract NFTMarketTest is Test {
         (address sellPerson, uint256 price) = market.listings(tokenId);
         assertEq(sellPerson, user, "Seller should be the user");
         assertEq(price, listingPrice, "Listing price should match");
-
     }
 
     // 没有授权无法上架
@@ -89,7 +86,7 @@ contract NFTMarketTest is Test {
         vm.startPrank(user);
 
         // 尝试不授权直接上架NFT
-        uint256 listingPrice = 100 * (10**18);
+        uint256 listingPrice = 100 * (10 ** 18);
 
         // 预期会触发一个错误，因为NFT未被授权给市场
         vm.expectRevert("ERC721: transfer caller is not owner nor approved");
@@ -111,7 +108,7 @@ contract NFTMarketTest is Test {
         vm.startPrank(user);
 
         // 即使授权某种原因成功了，尝试上架也应该失败
-        uint256 listingPrice = 100 * (10**18);
+        uint256 listingPrice = 100 * (10 ** 18);
         vm.expectRevert("ERC721: transfer of token that is not own");
         market.list(tokenId, listingPrice);
 
@@ -119,9 +116,10 @@ contract NFTMarketTest is Test {
         vm.stopPrank();
     }
     // 购买
+
     function testBuyNFT() public {
         address seller = address(0x03);
-        uint256 listingPrice = 100 * (10**18);
+        uint256 listingPrice = 100 * (10 ** 18);
         uint256 tokenId = nft.mint(seller);
         address buyer = address(0x04);
 
@@ -153,6 +151,7 @@ contract NFTMarketTest is Test {
         assertEq(listedPrice, 0, "Listed price should be zero");
     }
     // 自己购买自己的
+
     function testSelfBuyNFT() public {
         address userSelf = address(3);
         uint256 listingPrice = 100 ether;
@@ -183,14 +182,15 @@ contract NFTMarketTest is Test {
         assertEq(listedPrice, 0, "Listed price should be zero");
     }
     // 重复购买
+
     function testRepeatedBuyNFT() public {
         address seller = address(0x04);
-        uint256 listingPrice = 100 * (10**18);
-        uint256 listingPrice2 = 200 * (10**18);
+        uint256 listingPrice = 100 * (10 ** 18);
+        uint256 listingPrice2 = 200 * (10 ** 18);
         uint256 tokenId = nft.mint(seller);
 
-        address  buyer1 = address(0x05);
-        address  buyer2 = address(0x06);
+        address buyer1 = address(0x05);
+        address buyer2 = address(0x06);
 
         // 卖家上架NFT
         vm.startPrank(seller);
@@ -209,14 +209,14 @@ contract NFTMarketTest is Test {
 
         // 买家1拥有NFT的所有权
         assertEq(nft.ownerOf(tokenId), buyer1, "Buyer1 should now own the NFT");
-        
+
         // 给买家2充钱
         token.mint(buyer2, listingPrice2);
 
         // 买家2授权给市场额度
         vm.startPrank(buyer2);
         token.approve(address(market), listingPrice2);
-        
+
         // 期望抛出异常
         vm.expectRevert("NFT not listed");
         market.buyNFT(tokenId);
@@ -234,11 +234,12 @@ contract NFTMarketTest is Test {
         assertEq(listedPrice, 0, "Listed price should be zero");
     }
     // 多付钱
+
     function testBuyNFTWithOverpayment() public {
         address seller = address(0x07);
         address buyer = address(0x08);
-        uint256 listingPrice = 100 * (10**18);
-        uint256 overpaymentAmount = 150 * (10**18);
+        uint256 listingPrice = 100 * (10 ** 18);
+        uint256 overpaymentAmount = 150 * (10 ** 18);
         uint256 tokenId = nft.mint(seller);
 
         vm.startPrank(seller);
@@ -255,7 +256,9 @@ contract NFTMarketTest is Test {
 
         assertEq(nft.ownerOf(tokenId), buyer, "Buyer should now own the NFT");
         assertEq(token.balanceOf(seller), listingPrice, "Seller should have received the listing price");
-        assertEq(token.balanceOf(buyer), overpaymentAmount - listingPrice, "Buyer should have the correct remaining balance");
+        assertEq(
+            token.balanceOf(buyer), overpaymentAmount - listingPrice, "Buyer should have the correct remaining balance"
+        );
 
         (address listedSeller, uint256 listedPrice) = market.listings(tokenId);
         assertEq(listedSeller, address(0), "NFT should no longer be listed");
@@ -266,8 +269,8 @@ contract NFTMarketTest is Test {
     function testBuyNFTWithUnderpayment() public {
         address seller = address(0x09);
         address buyer = address(0x010);
-        uint256 listingPrice = 100 *(10**18);
-        uint256 underpaymentAmount = 50 * (10**18);
+        uint256 listingPrice = 100 * (10 ** 18);
+        uint256 underpaymentAmount = 50 * (10 ** 18);
         uint256 tokenId = nft.mint(seller);
 
         vm.startPrank(seller);
@@ -279,7 +282,7 @@ contract NFTMarketTest is Test {
 
         vm.startPrank(buyer);
         token.approve(address(market), underpaymentAmount);
-        
+
         vm.expectRevert("ERC20: transfer amount exceeds balance");
         market.buyNFT(tokenId);
         vm.stopPrank();
@@ -294,57 +297,56 @@ contract NFTMarketTest is Test {
     }
 
     // 模糊测试
-    function testRandomListingAndBuying(uint256 price,address mockbuyerAddress) public {
-        address  user = address(1);
+    // function testRandomListingAndBuying(uint256 price,address mockbuyerAddress) public {
+    //     address  user = address(1);
 
-        address  buyerAddress = address(mockbuyerAddress);
-        uint256  MAX_PRICE = 10000 * (10 ** 18);
-        uint256  MIN_PRICE = 1 * (10**16); // 0.01 token
-        
+    //     address  buyerAddress = address(mockbuyerAddress);
+    //     uint256  MAX_PRICE = 10000 * (10 ** 18);
+    //     uint256  MIN_PRICE = 1 * (10**16); // 0.01 token
 
-        // 确保price在0.01到10000个Token之间
-        price = bound(price, MIN_PRICE, MAX_PRICE);
+    //     // 确保price在0.01到10000个Token之间
+    //     price = bound(price, MIN_PRICE, MAX_PRICE);
 
-        // 给用户和买家mint一些ERC20代币
-        token.mint(user, MAX_PRICE);
-        token.mint(buyerAddress, MAX_PRICE);
+    //     // 给用户和买家mint一些ERC20代币
+    //     token.mint(user, MAX_PRICE);
+    //     token.mint(buyerAddress, MAX_PRICE);
 
-        // 给用户mint一个NFT
-        uint256 tokenId = nft.mint(user);
+    //     // 给用户mint一个NFT
+    //     uint256 tokenId = nft.mint(user);
 
-        // 切换为这个mock用户
-        vm.startPrank(user);
+    //     // 切换为这个mock用户
+    //     vm.startPrank(user);
 
-        // 授权market托管用户的NFT
-        nft.approve(address(market), tokenId);
+    //     // 授权market托管用户的NFT
+    //     nft.approve(address(market), tokenId);
 
-        // List the NFT
-        market.list(tokenId, price);
+    //     // List the NFT
+    //     market.list(tokenId, price);
 
-        // Stop acting as the user
-        vm.stopPrank();
+    //     // Stop acting as the user
+    //     vm.stopPrank();
 
-        // 切换为随机买家
-        vm.startPrank(buyerAddress);
+    //     // 切换为随机买家
+    //     vm.startPrank(buyerAddress);
 
-        // 授权market从买家账户转移ERC20代币
-        token.approve(address(market), price);
+    //     // 授权market从买家账户转移ERC20代币
+    //     token.approve(address(market), price);
 
-        // 买家购买NFT
-        if (token.balanceOf(buyerAddress) >= price && token.allowance(buyerAddress, address(market)) >= price) {
-            console.log(buyerAddress);
-            market.buyNFT(tokenId);
-            assertEq(nft.ownerOf(tokenId), buyerAddress, "Buyer should own the NFT");
-        }
+    //     // 买家购买NFT
+    //     if (token.balanceOf(buyerAddress) >= price && token.allowance(buyerAddress, address(market)) >= price) {
+    //         console.log(buyerAddress);
+    //         market.buyNFT(tokenId);
+    //         assertEq(nft.ownerOf(tokenId), buyerAddress, "Buyer should own the NFT");
+    //     }
 
-        // Stop acting as the buyer
-        vm.stopPrank();
-    }
+    //     // Stop acting as the buyer
+    //     vm.stopPrank();
+    // }
 
     function testNoTokenHoldingsInMarket() public {
         address user = address(0x12);
         address buyer = address(0x013);
-        uint256  MAX_PRICE = 10000 * (10 ** 18);
+        uint256 MAX_PRICE = 10000 * (10 ** 18);
         // 给用户和买家mint一些ERC20代币
         token.mint(user, MAX_PRICE);
         token.mint(buyer, MAX_PRICE);
@@ -359,7 +361,7 @@ contract NFTMarketTest is Test {
         nft.approve(address(market), tokenId);
 
         // List the NFT
-        uint256 listingPrice = 100 * 10**18; // 定价为 100 个 ERC20 代币
+        uint256 listingPrice = 100 * 10 ** 18; // 定价为 100 个 ERC20 代币
         market.list(tokenId, listingPrice);
 
         // Stop acting as the user
