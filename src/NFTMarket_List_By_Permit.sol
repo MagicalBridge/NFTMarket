@@ -9,6 +9,8 @@ import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract NFTMarket_List_By_Permit is EIP712, Ownable {
+    address public constant ETH_FLAG = address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
+
     using ECDSA for bytes32;
 
     IERC20 public immutable tokenContract;
@@ -52,7 +54,7 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
         bytes calldata permitERC20signature,
         PermitNFTList calldata permitNFTList,
         bytes calldata permitNFTListSignature
-    ) external {
+    ) external payable {
         // verify permitNFTList signature is valid
         verifyPermitNFTListSignature(
             permitNFTListSignature,
@@ -64,6 +66,7 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
             permitNFTList.nft
         );
 
+        // verify permitERC20 signature is valid
         executePermitAndTransfer(permitData, permitNFTList, permitERC20signature);
         emit NFTSold(permitData.tokenId, permitNFTList.maker, msg.sender, permitNFTList.price);
     }
@@ -94,7 +97,7 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
         PermitData calldata permitData,
         PermitNFTList memory permitNFTList,
         bytes calldata signature
-    ) public {
+    ) private {
         require(signature.length == 65, "Invalid signature length");
 
         (uint8 v, bytes32 r, bytes32 s) = parseSignature(signature);
@@ -107,9 +110,17 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
             revert("Permit failed");
         }
 
-        require(tokenContract.transferFrom(msg.sender, permitNFTList.maker, permitNFTList.price), "Transfer failed");
-
         nftContract.safeTransferFrom(permitNFTList.maker, msg.sender, permitData.tokenId);
+
+        if (permitNFTList.payToken == ETH_FLAG) {
+            require(msg.value == permitNFTList.price, "should pay by eth but eth value not equal to price");
+            // eth transfer
+            (bool success,) = permitNFTList.maker.call{value: permitNFTList.price}("");
+            require(success, "MKT: transfer failed");
+        } else {
+            require(msg.value == 0, "should pay by erc20 but eth value not equal to zero");
+            require(tokenContract.transferFrom(msg.sender, permitNFTList.maker, permitNFTList.price), "Transfer failed");
+        }
     }
 
     function parseSignature(bytes memory signature) internal pure returns (uint8 v, bytes32 r, bytes32 s) {

@@ -33,7 +33,7 @@ contract NFTMarket is Ownable(msg.sender), EIP712("OpenSpaceNFTMarket", "1") {
     function list(address nft, uint256 tokenId, address payToken, uint256 price, uint256 deadline) external {
         require(deadline > block.timestamp, "MKT: deadline is in the past");
         require(price > 0, "MKT: price is zero");
-        require(payToken == address(0) || IERC20(payToken).totalSupply() > 0, "MKT: payToken is not valid");
+        require(payToken == ETH_FLAG || IERC20(payToken).totalSupply() > 0, "MKT: payToken is not valid");
 
         // safe check
         require(IERC721(nft).ownerOf(tokenId) == msg.sender, "MKT: not owner");
