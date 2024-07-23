@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
-import {NFTMarketPermit} from "../src/NFTMarketPermit.sol";
+import {NFTMarket_Buy_By_Permit} from "../src/NFTMarket_Buy_By_Permit.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
@@ -24,7 +24,7 @@ contract MockERC721 is ERC721 {
 }
 
 contract NFTMarketPermitTest is Test {
-    NFTMarketPermit public market;
+    NFTMarket_Buy_By_Permit public market;
     MockERC20Permit public token;
     MockERC721 public nft;
 
@@ -59,7 +59,7 @@ contract NFTMarketPermitTest is Test {
         nft = new MockERC721();
 
         vm.prank(owner); // prank 只会影响下一笔交易 NFTMarketPermit 合约的 msg.sender 就被设置成为了 owner
-        market = new NFTMarketPermit(address(token), address(nft));
+        market = new NFTMarket_Buy_By_Permit(address(token), address(nft));
 
         deadline = block.timestamp + 1 days;
 
@@ -148,7 +148,7 @@ contract NFTMarketPermitTest is Test {
         // buyer用户
         vm.prank(buyer);
         market.permitBuyNFT(
-            whiteListSignature, buyer, deadline, NFTMarketPermit.PermitData(tokenId, deadline), eip2612Signature
+            whiteListSignature, buyer, deadline, NFTMarket_Buy_By_Permit.PermitData(tokenId, deadline), eip2612Signature
         );
 
         assertEq(nft.ownerOf(1), buyer);
@@ -169,7 +169,7 @@ contract NFTMarketPermitTest is Test {
         vm.expectRevert(); // expecting revert due to expired signature
         vm.prank(buyer);
         market.permitBuyNFT(
-            whiteListSignature, buyer, deadline, NFTMarketPermit.PermitData(tokenId, deadline), eip2612Signature
+            whiteListSignature, buyer, deadline, NFTMarket_Buy_By_Permit.PermitData(tokenId, deadline), eip2612Signature
         );
     }
 

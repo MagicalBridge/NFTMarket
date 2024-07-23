@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract NFTMarketPermit is EIP712, Ownable {
+contract NFTMarket_List_By_Permit is EIP712, Ownable {
     using ECDSA for bytes32;
 
     IERC20 public immutable tokenContract;
@@ -25,12 +25,19 @@ contract NFTMarketPermit is EIP712, Ownable {
         uint256 deadline;
     }
 
-    // struct PermitWL {
-    //     address buyer;
-    //     uint256 deadline;
-    // }
+    struct PermitNFTList {
+        address maker;
+        uint256 tokenId;
+        uint256 price;
+        uint256 deadline;
+        address payToken;
+        address nft;
+    }
 
     mapping(uint256 => Listing) public listings;
+
+    string private constant SIGNING_DOMAIN = "NFTMarketListByPermit";
+    string private constant SIGNATURE_VERSION = "1";
 
     event NFTListed(uint256 indexed tokenId, address indexed seller, uint256 price);
     event NFTSold(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price);
@@ -38,22 +45,19 @@ contract NFTMarketPermit is EIP712, Ownable {
     event NFTcancled(uint256 indexed tokenId, address indexed owner);
 
     bytes32 private constant WHITE_LIST_TYPE_HASH = keccak256("PermitBuyNFTWL(address buyer,uint256 deadline)");
+    bytes32 private constant LIMIT_ORDER_TYPE_HASH = keccak256(
+        "LimitOrder(address maker,uint256 tokenId,uint256 price,uint256 deadline,address payToken,address nft)"
+    );
 
-    constructor(address _tokenAddress, address _nftAddress) EIP712("NFTMarketPermit", "1") Ownable(msg.sender) {
+    constructor(address _tokenAddress, address _nftAddress)
+        EIP712(SIGNING_DOMAIN, SIGNATURE_VERSION)
+        Ownable(msg.sender)
+    {
         require(_tokenAddress != address(0), "Token contract address cannot be zero.");
         require(_nftAddress != address(0), "NFT contract address cannot be zero.");
         tokenContract = IERC20(_tokenAddress);
         tokenContractPermit = IERC20Permit(_tokenAddress);
         nftContract = IERC721(_nftAddress);
-    }
-
-    function list(uint256 _tokenId, uint256 _price) external {
-        require(nftContract.ownerOf(_tokenId) == msg.sender, "Not the owner");
-        require(nftContract.getApproved(_tokenId) == address(this), "Not approved");
-
-        listings[_tokenId] = Listing(msg.sender, _price);
-
-        emit NFTListed(_tokenId, msg.sender, _price);
     }
 
     function cancelList(uint256 _tokenId) external {
@@ -68,16 +72,51 @@ contract NFTMarketPermit is EIP712, Ownable {
         address buyer,
         uint256 deadline,
         PermitData calldata permitData,
-        bytes calldata _permit
+        bytes calldata _permit,
+        bytes calldata _signatureNFT,
+        PermitNFTList calldata permitNFTList
     ) external {
         Listing memory listing = listings[permitData.tokenId];
         require(listing.seller != address(0), "NFT not listed");
 
         verifyPermitSignature(_permitWL, buyer, deadline);
+
+        verifyPermitNFTSignature(
+            _signatureNFT,
+            permitNFTList.maker,
+            permitNFTList.tokenId,
+            permitNFTList.price,
+            permitNFTList.deadline,
+            permitNFTList.payToken,
+            permitNFTList.nft
+        );
+
         executePermitAndTransfer(permitData, listing, _permit);
 
         delete listings[permitData.tokenId];
         emit NFTSold(permitData.tokenId, listing.seller, msg.sender, listing.price);
+    }
+
+    function verifyPermitNFTSignature(
+        bytes calldata _signatureNFT,
+        address maker,
+        uint256 tokenId,
+        uint256 price,
+        uint256 deadline,
+        address payToken,
+        address nft
+    ) public view returns (address) {
+        require(block.timestamp <= deadline, "deadline should not be passed");
+
+        bytes32 digest = _hashTypedDataV4(
+            keccak256(abi.encode(LIMIT_ORDER_TYPE_HASH, maker, tokenId, price, deadline, payToken, nft))
+        );
+
+        address recoveredSigner = ECDSA.recover(digest, _signatureNFT);
+
+        require(recoveredSigner == owner(), "signer should be owner");
+
+        return recoveredSigner;
     }
 
     function verifyPermitSignature(bytes calldata signatureWL, address buyer, uint256 deadline)

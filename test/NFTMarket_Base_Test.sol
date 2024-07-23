@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
-import {NFTMarket} from "../src/NFTMarket.sol";
+import {NFTMarket_Base} from "../src/NFTMarket_Base.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
@@ -28,7 +28,7 @@ contract MockERC721 is ERC721 {
 }
 
 contract NFTMarketTest is Test {
-    NFTMarket public market;
+    NFTMarket_Base public market;
     MockERC20 public token;
     MockERC721 public nft;
 
@@ -39,7 +39,7 @@ contract NFTMarketTest is Test {
     function setUp() public {
         token = new MockERC20();
         nft = new MockERC721();
-        market = new NFTMarket(address(token), address(nft));
+        market = new NFTMarket_Base(address(token), address(nft));
     }
 
     // 测试构造函数
