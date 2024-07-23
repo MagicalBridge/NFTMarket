@@ -15,11 +15,6 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
     IERC20Permit public immutable tokenContractPermit;
     IERC721 public immutable nftContract;
 
-    struct Listing {
-        address seller;
-        uint256 price;
-    }
-
     struct PermitData {
         uint256 tokenId;
         uint256 deadline;
@@ -34,17 +29,9 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
         address nft;
     }
 
-    mapping(uint256 => Listing) public listings;
-
     string private constant SIGNING_DOMAIN = "NFTMarketListByPermit";
     string private constant SIGNATURE_VERSION = "1";
 
-    event NFTListed(uint256 indexed tokenId, address indexed seller, uint256 price);
-    event NFTSold(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price);
-    event SignVerify(address indexed signer, address indexed owner, address indexed buyer);
-    event NFTcancled(uint256 indexed tokenId, address indexed owner);
-
-    bytes32 private constant WHITE_LIST_TYPE_HASH = keccak256("PermitBuyNFTWL(address buyer,uint256 deadline)");
     bytes32 private constant LIMIT_ORDER_TYPE_HASH = keccak256(
         "LimitOrder(address maker,uint256 tokenId,uint256 price,uint256 deadline,address payToken,address nft)"
     );
@@ -60,29 +47,15 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
         nftContract = IERC721(_nftAddress);
     }
 
-    function cancelList(uint256 _tokenId) external {
-        address seller = listings[_tokenId].seller;
-        require(seller == msg.sender, "Not the owner");
-        delete listings[_tokenId];
-        emit NFTcancled(_tokenId, seller);
-    }
-
-    function permitBuyNFT(
-        bytes calldata _permitWL,
-        address buyer,
-        uint256 deadline,
+    function buyNFTByPermitList(
         PermitData calldata permitData,
-        bytes calldata _permit,
-        bytes calldata _signatureNFT,
-        PermitNFTList calldata permitNFTList
+        bytes calldata permitERC20signature,
+        PermitNFTList calldata permitNFTList,
+        bytes calldata permitNFTListSignature
     ) external {
-        Listing memory listing = listings[permitData.tokenId];
-        require(listing.seller != address(0), "NFT not listed");
-
-        verifyPermitSignature(_permitWL, buyer, deadline);
-
-        verifyPermitNFTSignature(
-            _signatureNFT,
+        // verify permitNFTList signature is valid
+        verifyPermitNFTListSignature(
+            permitNFTListSignature,
             permitNFTList.maker,
             permitNFTList.tokenId,
             permitNFTList.price,
@@ -91,14 +64,12 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
             permitNFTList.nft
         );
 
-        executePermitAndTransfer(permitData, listing, _permit);
-
-        delete listings[permitData.tokenId];
-        emit NFTSold(permitData.tokenId, listing.seller, msg.sender, listing.price);
+        executePermitAndTransfer(permitData, permitNFTList, permitERC20signature);
+        emit NFTSold(permitData.tokenId, permitNFTList.maker, msg.sender, permitNFTList.price);
     }
 
-    function verifyPermitNFTSignature(
-        bytes calldata _signatureNFT,
+    function verifyPermitNFTListSignature(
+        bytes calldata permitNFTListsignature,
         address maker,
         uint256 tokenId,
         uint256 price,
@@ -112,35 +83,23 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
             keccak256(abi.encode(LIMIT_ORDER_TYPE_HASH, maker, tokenId, price, deadline, payToken, nft))
         );
 
-        address recoveredSigner = ECDSA.recover(digest, _signatureNFT);
+        address recoveredSigner = ECDSA.recover(digest, permitNFTListsignature);
 
         require(recoveredSigner == owner(), "signer should be owner");
 
         return recoveredSigner;
     }
 
-    function verifyPermitSignature(bytes calldata signatureWL, address buyer, uint256 deadline)
-        public
-        view
-        returns (address)
-    {
-        require(block.timestamp <= deadline, "deadline should not be passed");
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(WHITE_LIST_TYPE_HASH, buyer, deadline)));
-
-        address recoveredSigner = ECDSA.recover(digest, signatureWL);
-        require(recoveredSigner == owner(), "signer should be owner");
-        require(buyer == msg.sender, "buyer should be msg.sender");
-        return recoveredSigner;
-    }
-
-    function executePermitAndTransfer(PermitData calldata permitData, Listing memory listing, bytes calldata signature)
-        public
-    {
+    function executePermitAndTransfer(
+        PermitData calldata permitData,
+        PermitNFTList memory permitNFTList,
+        bytes calldata signature
+    ) public {
         require(signature.length == 65, "Invalid signature length");
 
         (uint8 v, bytes32 r, bytes32 s) = parseSignature(signature);
 
-        try tokenContractPermit.permit(msg.sender, address(this), listing.price, permitData.deadline, v, r, s) {
+        try tokenContractPermit.permit(msg.sender, address(this), permitNFTList.price, permitData.deadline, v, r, s) {
             // Permit successful, proceed with transfer
         } catch Error(string memory reason) {
             revert(string(abi.encodePacked("Permit failed: ", reason)));
@@ -148,8 +107,9 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
             revert("Permit failed");
         }
 
-        require(tokenContract.transferFrom(msg.sender, listing.seller, listing.price), "Transfer failed");
-        nftContract.safeTransferFrom(listing.seller, msg.sender, permitData.tokenId);
+        require(tokenContract.transferFrom(msg.sender, permitNFTList.maker, permitNFTList.price), "Transfer failed");
+
+        nftContract.safeTransferFrom(permitNFTList.maker, msg.sender, permitData.tokenId);
     }
 
     function parseSignature(bytes memory signature) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
@@ -170,7 +130,12 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
         return _domainSeparatorV4();
     }
 
-    function getWhiteListTypeHash() public pure returns (bytes32) {
-        return WHITE_LIST_TYPE_HASH;
+    function getLimitOrderTypeHash() public pure returns (bytes32) {
+        return LIMIT_ORDER_TYPE_HASH;
     }
+
+    event NFTListed(uint256 indexed tokenId, address indexed seller, uint256 price);
+    event NFTSold(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price);
+    event SignVerify(address indexed signer, address indexed owner, address indexed buyer);
+    event NFTcancled(uint256 indexed tokenId, address indexed owner);
 }

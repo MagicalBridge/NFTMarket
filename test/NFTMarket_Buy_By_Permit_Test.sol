@@ -23,7 +23,7 @@ contract MockERC721 is ERC721 {
     }
 }
 
-contract NFTMarketPermitTest is Test {
+contract NFTMarket_Buy_By_Permit_Test is Test {
     NFTMarket_Buy_By_Permit public market;
     MockERC20Permit public token;
     MockERC721 public nft;
