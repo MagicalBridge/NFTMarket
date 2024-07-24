@@ -17,6 +17,8 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
     IERC20Permit public immutable tokenContractPermit;
     IERC721 public immutable nftContract;
 
+    mapping(bytes => bool) usedPermit;
+
     struct PermitData {
         uint256 tokenId;
         uint256 deadline;
@@ -47,6 +49,27 @@ contract NFTMarket_List_By_Permit is EIP712, Ownable {
         tokenContract = IERC20(_tokenAddress);
         tokenContractPermit = IERC20Permit(_tokenAddress);
         nftContract = IERC721(_nftAddress);
+    }
+
+    function cancelListNFT(
+        bytes calldata permitNFTListsignature,
+        address maker,
+        uint256 tokenId,
+        uint256 price,
+        uint256 deadline,
+        address payToken,
+        address nft
+    ) public {
+        bytes32 digest = _hashTypedDataV4(
+            keccak256(abi.encode(LIMIT_ORDER_TYPE_HASH, maker, tokenId, price, deadline, payToken, nft))
+        );
+
+        address recoveredSigner = ECDSA.recover(digest, permitNFTListsignature);
+
+        require(recoveredSigner == owner(), "signer should be owner");
+        require(msg.sender == maker);
+
+        usedPermit[permitNFTListsignature] = false;
     }
 
     function buyNFTByPermitList(
