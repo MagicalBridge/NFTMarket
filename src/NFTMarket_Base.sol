@@ -4,24 +4,19 @@ pragma solidity ^0.8.24;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-// NFTMarket 合约允许用户使用自定义的 ERC20 代币购买和出售 NFT
 contract NFTMarket_Base {
-    // 定义 ERC20 代币和 ERC721 NFT 合约的接口
     IERC20 public immutable tokenContract;
     IERC721 public immutable nftContract;
 
-    // 列出 NFT 的结构体，包含卖家的地址和价格
     struct Listing {
         address seller;
         uint256 price;
     }
 
-    // tokenId 到 Listing 结构体的映射，用于存储所有上架的 NFT
+    // mapping NFT id to listing info
     mapping(uint256 => Listing) public listings;
 
-    // 事件：当 NFT 被上架时触发
     event NFTListed(uint256 indexed tokenId, address indexed seller, uint256 price);
-    // 事件：当 NFT 被售出时触发
     event NFTSold(uint256 indexed tokenId, address indexed seller, address indexed buyer, uint256 price);
 
     // 构造函数，初始化合约时设置 ERC20 代币合约和 ERC721 NFT 合约的地址
